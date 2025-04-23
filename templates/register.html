@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>说话人注册</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+        }
+        .recording {
+            color: red;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="mb-4">说话人注册</h1>
+        
+        <form id="registerForm" class="mb-4">
+            <div class="mb-3">
+                <label for="name" class="form-label">姓名</label>
+                <input type="text" class="form-control" id="name" name="name" required>
+            </div>
+            
+            <div class="mb-3">
+                <label for="audio" class="form-label">语音样本</label>
+                <input type="file" class="form-control" id="audio" name="audio" accept="audio/*" required>
+            </div>
+            
+            <button type="submit" class="btn btn-primary">注册</button>
+            <button type="button" id="recordButton" class="btn btn-secondary">录制音频</button>
+            <span id="recording" class="recording">正在录音...</span>
+        </form>
+        
+        <div id="result" class="alert" style="display: none;"></div>
+    </div>
+
+    <script>
+        let mediaRecorder;
+        let audioChunks = [];
+        const recordButton = document.getElementById('recordButton');
+        const recordingStatus = document.getElementById('recording');
+        
+        recordButton.addEventListener('click', async () => {
+            if (!mediaRecorder || mediaRecorder.state === 'inactive') {
+                // 开始录音
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+                    
+                    mediaRecorder.ondataavailable = (event) => {
+                        audioChunks.push(event.data);
+                    };
+                    
+                    mediaRecorder.onstop = () => {
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                        const audioFile = new File([audioBlob], 'recording.wav', { type: 'audio/wav' });
+                        
+                        // 创建一个新的 FileList 对象
+                        const dataTransfer = new DataTransfer();
+                        dataTransfer.items.add(audioFile);
+                        document.getElementById('audio').files = dataTransfer.files;
+                        
+                        audioChunks = [];
+                    };
+                    
+                    mediaRecorder.start();
+                    recordButton.textContent = '停止录音';
+                    recordingStatus.style.display = 'inline';
+                    
+                } catch (err) {
+                    console.error('录音失败:', err);
+                    alert('无法访问麦克风');
+                }
+            } else {
+                // 停止录音
+                mediaRecorder.stop();
+                recordButton.textContent = '录制音频';
+                recordingStatus.style.display = 'none';
+                mediaRecorder.stream.getTracks().forEach(track => track.stop());
+            }
+        });
+        
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData();
+            formData.append('name', document.getElementById('name').value);
+            formData.append('audio', document.getElementById('audio').files[0]);
+            
+            try {
+                const response = await fetch('/register_speaker', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                const resultDiv = document.getElementById('result');
+                
+                if (result.success) {
+                    resultDiv.className = 'alert alert-success';
+                } else {
+                    resultDiv.className = 'alert alert-danger';
+                }
+                
+                resultDiv.textContent = result.message;
+                resultDiv.style.display = 'block';
+                
+            } catch (err) {
+                console.error('注册失败:', err);
+                alert('注册失败，请重试');
+            }
+        });
+    </script>
+</body>
+</html> 
