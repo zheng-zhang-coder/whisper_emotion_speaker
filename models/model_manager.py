@@ -59,7 +59,7 @@ class ModelManager:
             os.makedirs(emotion_model_dir, exist_ok=True)
             
             # 使用ModelScope下载情感识别模型
-            model_id = 'damo/speech_emotion_recognition_wav2vec2'
+            model_id = settings.EMOTION_MODEL_PATH
             model_dir = snapshot_download(model_id, cache_dir=emotion_model_dir)
             
             self._models['emotion'] = CustomEncoderWav2vec2Classifier.from_hparams(

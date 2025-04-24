@@ -23,6 +23,7 @@ import numpy as np
 from pathlib import Path
 from fastapi import WebSocketDisconnect
 from fastapi.responses import RedirectResponse
+from contextlib import asynccontextmanager
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,39 @@ os.makedirs("templates", exist_ok=True)
 os.makedirs(settings.MODEL_CACHE_DIR, exist_ok=True)
 os.makedirs(settings.EMOTION_MODEL_SAVE_DIR, exist_ok=True)
 
-app = FastAPI(title="语音处理服务")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    try:
+        # 初始化数据库
+        init_db()
+        
+        # 初始化并发限制
+        cache.set_concurrent_limit("stream", 0)
+        
+        # 初始化模型（会自动下载）
+        logger.info("正在初始化模型...")
+        model_manager._initialize_models()
+        logger.info("模型初始化完成")
+        
+        # 启动队列处理
+        asyncio.create_task(queue_manager.process_queue('transcription', audio_processor.process_transcription))
+        asyncio.create_task(queue_manager.process_queue('emotion', audio_processor.process_emotion))
+        asyncio.create_task(queue_manager.process_queue('speaker', audio_processor.process_speaker))
+        logger.info("队列处理已启动")
+        
+        yield
+    except Exception as e:
+        logger.error(f"启动时出错: {str(e)}")
+        raise
+    finally:
+        try:
+            # 关闭模型管理器
+            model_manager.shutdown()
+            logger.info("模型管理器已关闭")
+        except Exception as e:
+            logger.error(f"关闭时出错: {str(e)}")
+
+app = FastAPI(title="语音处理服务", lifespan=lifespan)
 
 # 配置CORS
 app.add_middleware(
@@ -370,41 +403,5 @@ async def recognize_audio(audio: UploadFile = File(...)):
         logger.error(f"识别失败: {str(e)}")
         return {"error": str(e)}
 
-# 启动时初始化
-@app.on_event("startup")
-async def startup_event():
-    try:
-        # 初始化数据库
-        init_db()
-        
-        # 初始化并发限制
-        cache.set_concurrent_limit("stream", 0)
-        
-        # 初始化模型（会自动下载）
-        logger.info("正在初始化模型...")
-        model_manager._initialize_models()
-        logger.info("模型初始化完成")
-        
-        # 启动队列处理
-        asyncio.create_task(queue_manager.process_queue('transcription', audio_processor.process_transcription))
-        asyncio.create_task(queue_manager.process_queue('emotion', audio_processor.process_emotion))
-        asyncio.create_task(queue_manager.process_queue('speaker', audio_processor.process_speaker))
-        logger.info("队列处理已启动")
-        
-    except Exception as e:
-        logger.error(f"启动时出错: {str(e)}")
-        raise
-
-# 关闭时清理
-@app.on_event("shutdown")
-async def shutdown_event():
-    try:
-        # 关闭模型管理器
-        model_manager.shutdown()
-        logger.info("模型管理器已关闭")
-        
-    except Exception as e:
-        logger.error(f"关闭时出错: {str(e)}")
-
 if __name__ == "__main__":
-    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True) 
+    uvicorn.run("app:app", host="127.0.0.1", port=8080, reload=True) 

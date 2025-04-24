@@ -48,8 +48,8 @@ class Settings(BaseSettings):
     REDIS_HOST: str = "redis-shzl6ittlnwxl3ama.redis.volces.com"
     REDIS_PORT: int = 6379
     REDIS_DB: int = 0
-    REDIS_PASSWORD: str = "%406%40pAbQdK4P2sjk"
-    REDIS_USER: str = "zixiai_dev"  # 修改为空字符串而不是 None
+    REDIS_PASSWORD: str = "6@pAbQdK4P2sjk"  # 移除URL编码的@符号
+    REDIS_USER: str = "zixiai_dev"
 
     # 缓存设置
     CACHE_TTL: int = 3600  # 缓存过期时间（秒）

@@ -5,16 +5,29 @@ from config import settings
 from typing import Optional, Any, List
 from sqlalchemy.orm import Session
 from models.database import Speaker
+import logging
+
+logger = logging.getLogger(__name__)
 
 class RedisCache:
     def __init__(self):
-        self.redis = redis.Redis(
-            host=settings.REDIS_HOST,
-            port=settings.REDIS_PORT,
-            db=settings.REDIS_DB,
-            password=settings.REDIS_PASSWORD,
-            decode_responses=True
-        )
+        try:
+            self.redis = redis.Redis(
+                host=settings.REDIS_HOST,
+                port=settings.REDIS_PORT,
+                db=settings.REDIS_DB,
+                password=settings.REDIS_PASSWORD,
+                username=settings.REDIS_USER,
+                decode_responses=True,
+                socket_timeout=5,
+                socket_connect_timeout=5
+            )
+            # 测试连接
+            self.redis.ping()
+            logger.info("Redis连接成功")
+        except Exception as e:
+            logger.error(f"Redis连接失败: {str(e)}")
+            raise
     
     def set_speaker(self, speaker_id: int, speaker_data: dict, permanent: bool = False):
         """
